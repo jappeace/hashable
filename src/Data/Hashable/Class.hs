@@ -94,6 +94,12 @@ import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import qualified Data.Tree as Tree
 
+#if __GLASGOW_HASKELL__ >= 703
+import Foreign.C (CSize(..))
+#else
+import Foreign.C (CSize)
+#endif
+
 -- As we use qualified F.Foldable, we don't get warnings with newer base
 import qualified Data.Foldable as F
 
@@ -773,6 +779,20 @@ hashPtr :: Ptr a      -- ^ pointer to the data to hash
         -> IO Int     -- ^ hash value
 hashPtr p len = hashPtrWithSalt p len defaultSalt
 
+-- | Compute a hash value for the content of this pointer, using an
+-- initial salt.
+--
+-- This function can for example be used to hash non-contiguous
+-- segments of memory as if they were one contiguous segment, by using
+-- the output of one hash as the salt for the next.
+hashPtrWithSalt :: Ptr a   -- ^ pointer to the data to hash
+                -> Int     -- ^ length, in bytes
+                -> Int     -- ^ salt
+                -> IO Int  -- ^ hash value
+hashPtrWithSalt p len salt =
+    fromIntegral `fmap` c_siphash24 k0 (fromSalt salt) (castPtr p)
+                        (fromIntegral len)
+
 -- | Compute a hash value for the content of this 'ByteArray#',
 -- beginning at the specified offset, using specified number of bytes.
 hashByteArray :: ByteArray#  -- ^ data to hash
@@ -781,6 +801,42 @@ hashByteArray :: ByteArray#  -- ^ data to hash
               -> Int         -- ^ hash value
 hashByteArray ba0 off len = hashByteArrayWithSalt ba0 off len defaultSalt
 {-# INLINE hashByteArray #-}
+
+-- | Compute a hash value for the content of this 'ByteArray#', using
+-- an initial salt.
+--
+-- This function can for example be used to hash non-contiguous
+-- segments of memory as if they were one contiguous segment, by using
+-- the output of one hash as the salt for the next.
+hashByteArrayWithSalt
+    :: ByteArray#  -- ^ data to hash
+    -> Int         -- ^ offset, in bytes
+    -> Int         -- ^ length, in bytes
+    -> Int         -- ^ salt
+    -> Int         -- ^ hash value
+hashByteArrayWithSalt ba !off !len !h =
+    fromIntegral $
+    c_siphash24_offset k0 (fromSalt h) ba (fromIntegral off) (fromIntegral len)
+
+k0 :: Word64
+k0 = 0x56e2b8a0aee1721a
+{-# INLINE k0 #-}
+
+fromSalt :: Int -> Word64
+#if WORD_SIZE_IN_BITS == 64
+fromSalt = fromIntegral
+#else
+fromSalt v = fromIntegral v `xor` k1
+
+k1 :: Word64
+k1 = 0x7654954208bdfef9
+{-# INLINE k1 #-}
+#endif
+
+-- | Combine two given hash values.  'combine' has zero as a left
+-- identity.
+combine :: Int -> Int -> Int
+combine h1 h2 = (h1 * 16777619) `xor` h2
 
 instance Hashable Unique where
     hash = hashUnique
@@ -1020,6 +1076,9 @@ instance Hashable IntSet.IntSet where
 instance Hashable1 Seq.Seq where
     liftHashWithSalt h s x = F.foldl' h (hashWithSalt s (Seq.length x)) x
 
+foreign import ccall unsafe "hashable_siphash24_offset" c_siphash24_offset
+    :: Word64 -> Word64 -> ByteArray# -> CSize -> CSize -> Word64
+
 -- | @since 1.3.4.0
 instance Hashable v => Hashable (Seq.Seq v) where
     hashWithSalt = hashWithSalt1
@@ -1031,3 +1090,6 @@ instance Hashable1 Tree.Tree where
 -- | @since 1.3.4.0
 instance Hashable v => Hashable (Tree.Tree v) where
     hashWithSalt = hashWithSalt1
+
+foreign import ccall unsafe "hashable_siphash24" c_siphash24
+    :: Word64 -> Word64 -> Ptr Word8 -> CSize -> IO Word64
