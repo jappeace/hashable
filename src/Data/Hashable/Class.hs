@@ -94,6 +94,8 @@ import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import qualified Data.Tree as Tree
 
+import qualified Data.Text.Internal.Lazy as TL
+
 #if __GLASGOW_HASKELL__ >= 703
 import Foreign.C (CSize(..))
 #else
@@ -144,7 +146,7 @@ import Data.Bits (finiteBitSize)
 import Data.Bits (bitSize)
 #endif
 
-#if !(MIN_VERSION_bytestring(0,10,0))
+#if (MIN_VERSION_bytestring(0,10,0))
 import qualified Data.ByteString.Lazy.Internal as BL  -- foldlChunks
 #endif
 
@@ -1092,3 +1094,42 @@ instance Hashable v => Hashable (Tree.Tree v) where
     hashWithSalt = hashWithSalt1
 foreign import ccall unsafe "hashable_siphash24" c_siphash24
     :: Word64 -> Word64 -> Ptr Word8 -> CSize -> IO Word64
+<<<<<<< variant A
+>>>>>>> variant B
+
+hashLazyByteStringWithSalt :: Int -> BL.ByteString -> Int
+hashLazyByteStringWithSalt salt cs0 = unsafePerformIO . allocaArray 5 $ \v -> do
+  c_siphash_init k0 (fromSalt salt) v
+  let go !buffered !totallen (BL.Chunk c cs) =
+        B.unsafeUseAsCStringLen c $ \(ptr, len) -> do
+          let len' = fromIntegral len
+          buffered' <- c_siphash24_chunk buffered v (castPtr ptr) len' (-1)
+          go buffered' (totallen + len') cs
+      go buffered totallen _ = do
+        _ <- c_siphash24_chunk buffered v nullPtr 0 totallen
+        fromIntegral `fmap` peek (v `advancePtr` 4)
+  go 0 0 cs0
+
+foreign import ccall unsafe "hashable_siphash24_chunk" c_siphash24_chunk
+    :: CInt -> Ptr Word64 -> Ptr Word8 -> CSize -> CSize -> IO CInt
+
+foreign import ccall unsafe "hashable_siphash_init" c_siphash_init
+    :: Word64 -> Word64 -> Ptr Word64 -> IO ()
+
+hashLazyTextWithSalt :: Int -> TL.Text -> Int
+hashLazyTextWithSalt salt cs0 = unsafePerformIO . allocaArray 5 $ \v -> do
+  c_siphash_init k0 (fromSalt salt) v
+  let go !buffered !totallen (TL.Chunk (T.Text arr off len) cs) = do
+        let len' = fromIntegral (len `shiftL` 1)
+        buffered' <- c_siphash24_chunk_offset buffered v (TA.aBA arr)
+                     (fromIntegral (off `shiftL` 1)) len' (-1)
+        go buffered' (totallen + len') cs
+      go buffered totallen _ = do
+        _ <- c_siphash24_chunk buffered v nullPtr 0 totallen
+        fromIntegral `fmap` peek (v `advancePtr` 4)
+  go 0 0 cs0
+
+foreign import ccall unsafe "hashable_siphash24_chunk_offset"
+        c_siphash24_chunk_offset
+    :: CInt -> Ptr Word64 -> ByteArray# -> CSize -> CSize -> CSize -> IO CInt
+======= end
