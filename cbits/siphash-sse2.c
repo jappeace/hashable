@@ -11,13 +11,13 @@
 
 #define _mm_roti_epi64(x, c) ((16 == (c)) ? _mm_shufflelo_epi16((x), _MM_SHUFFLE(2,1,0,3)) : _mm_xor_si128(_mm_slli_epi64((x), (c)), _mm_srli_epi64((x), 64-(c))))
 
-u64 hashable_siphash24_sse2(u64 ik0, u64 ik1, const u8 *m, size_t n)
+uint64_t hashable_siphash24_sse2(u64 ik0, u64 ik1, const u8 *m, size_t n)
 {
 	__m128i v0, v1, v2, v3;
 	__m128i k0, k1;
 	__m128i mi, mask, len;
 	size_t i, k;
-	union { u64 gpr; __m128i xmm; } hash;
+	union { uint64_t gpr; __m128i xmm; } hash;
 	const u8 *p;
 
 	/* We used to use the _mm_seti_epi32 intrinsic to initialize
@@ -124,6 +124,6 @@ u64 hashable_siphash24_sse2(u64 ik0, u64 ik1, const u8 *m, size_t n)
 
 #undef COMPRESS
 #undef HALF_ROUND
-	//return _mm_extract_epi32(v0, 0) | (((u64)_mm_extract_epi32(v0, 1)) << 32);
+	//return _mm_extract_epi32(v0, 0) | (((uint64_t)_mm_extract_epi32(v0, 1)) << 32);
 	return hash.gpr;
 }

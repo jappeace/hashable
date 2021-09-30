@@ -3,7 +3,7 @@
 #include <stddef.h>
 #include "siphash.h"
 
-#define ROTL(x,b) (u64)(((x) << (b)) | ((x) >> (64 - (b))))
+#define ROTL(x,b) (uint64_t)(((x) << (b)) | ((x) >> (64 - (b))))
 
 #define SIPROUND \
     do { \
@@ -17,33 +17,33 @@
 # define _siphash24 plain_siphash24
 #endif
 
-static inline u64 odd_read(const u8 *p, int count, u64 val, int shift)
+static inline uint64_t odd_read(const u8 *p, int count, uint64_t val, int shift)
 {
     switch (count) {
-    case 7: val |= ((u64)p[6]) << (shift + 48);
-    case 6: val |= ((u64)p[5]) << (shift + 40);
-    case 5: val |= ((u64)p[4]) << (shift + 32);
-    case 4: val |= ((u64)p[3]) << (shift + 24);
-    case 3: val |= ((u64)p[2]) << (shift + 16);
-    case 2: val |= ((u64)p[1]) << (shift + 8);
-    case 1: val |= ((u64)p[0]) << shift;
+    case 7: val |= ((uint64_t)p[6]) << (shift + 48);
+    case 6: val |= ((uint64_t)p[5]) << (shift + 40);
+    case 5: val |= ((uint64_t)p[4]) << (shift + 32);
+    case 4: val |= ((uint64_t)p[3]) << (shift + 24);
+    case 3: val |= ((uint64_t)p[2]) << (shift + 16);
+    case 2: val |= ((uint64_t)p[1]) << (shift + 8);
+    case 1: val |= ((uint64_t)p[0]) << shift;
     }
     return val;
 }
 
-static inline u64 _siphash(int c, int d, u64 k0, u64 k1,
+static inline uint64_t _siphash(int c, int d, uint64_t k0, uint64_t k1,
 			   const u8 *str, size_t len)
 {
-    u64 v0 = 0x736f6d6570736575ull ^ k0;
-    u64 v1 = 0x646f72616e646f6dull ^ k1;
-    u64 v2 = 0x6c7967656e657261ull ^ k0;
-    u64 v3 = 0x7465646279746573ull ^ k1;
+    uint64_t v0 = 0x736f6d6570736575ull ^ k0;
+    uint64_t v1 = 0x646f72616e646f6dull ^ k1;
+    uint64_t v2 = 0x6c7967656e657261ull ^ k0;
+    uint64_t v3 = 0x7465646279746573ull ^ k1;
     const u8 *end, *p;
-    u64 b;
+    uint64_t b;
     int i;
 
     for (p = str, end = str + (len & ~7); p < end; p += 8) {
-	u64 m = peek_u64le((u64 *) p);
+	uint64_t m = peek_uint64_tle((uint64_t *) p);
 	v3 ^= m;
 	if (c == 2) {
 	    SIPROUND;
@@ -55,7 +55,7 @@ static inline u64 _siphash(int c, int d, u64 k0, u64 k1,
 	v0 ^= m;
     }
 
-    b = odd_read(p, len & 7, ((u64) len) << 56, 0);
+    b = odd_read(p, len & 7, ((uint64_t) len) << 56, 0);
 
     v3 ^= b;
     if (c == 2) {
@@ -82,7 +82,7 @@ static inline u64 _siphash(int c, int d, u64 k0, u64 k1,
 }
 
 
-static inline u64 _siphash24(u64 k0, u64 k1, const u8 *str, size_t len)
+static inline uint64_t _siphash24(uint64_t k0, uint64_t k1, const u8 *str, size_t len)
 {
     return _siphash(2, 4, k0, k1, str, len);
 }
@@ -90,7 +90,7 @@ static inline u64 _siphash24(u64 k0, u64 k1, const u8 *str, size_t len)
 #if defined(__i386)
 # undef _siphash24
 
-static u64 (*_siphash24)(u64 k0, u64 k1, const u8 *, size_t);
+static uint64_t (*_siphash24)(uint64_t k0, uint64_t k1, const u8 *, size_t);
 
 static void maybe_use_sse()
     __attribute__((constructor));
@@ -130,12 +130,12 @@ static inline void ensure_sse_init()
 #endif
 }
 
-u64 hashable_siphash(int c, int d, u64 k0, u64 k1, const u8 *str, size_t len)
+uint64_t hashable_siphash(int c, int d, uint64_t k0, uint64_t k1, const u8 *str, size_t len)
 {
     return _siphash(c, d, k0, k1, str, len);
 }
 
-u64 hashable_siphash24(u64 k0, u64 k1, const u8 *str, size_t len)
+uint64_t hashable_siphash24(uint64_t k0, uint64_t k1, const u8 *str, size_t len)
 {
     ensure_sse_init();
     return _siphash24(k0, k1, str, len);
@@ -144,19 +144,19 @@ u64 hashable_siphash24(u64 k0, u64 k1, const u8 *str, size_t len)
 /* Used for ByteArray#s. We can't treat them like pointers in
    native Haskell, but we can in unsafe FFI calls.
  */
-u64 hashable_siphash24_offset(u64 k0, u64 k1,
+uint64_t hashable_siphash24_offset(uint64_t k0, uint64_t k1,
 			      const u8 *str, size_t off, size_t len)
 {
     ensure_sse_init();
     return _siphash24(k0, k1, str + off, len);
 }
 
-static int _siphash_chunk(int c, int d, int buffered, u64 v[5],
+static int _siphash_chunk(int c, int d, int buffered, uint64_t v[5],
 			  const u8 *str, size_t len, size_t totallen)
 {
-    u64 v0 = v[0], v1 = v[1], v2 = v[2], v3 = v[3], m, b;
+    uint64_t v0 = v[0], v1 = v[1], v2 = v[2], v3 = v[3], m, b;
     const u8 *p, *end;
-    u64 carry = 0;
+    uint64_t carry = 0;
     int i;
 
     if (buffered > 0) {
@@ -187,7 +187,7 @@ static int _siphash_chunk(int c, int d, int buffered, u64 v[5],
     }
 
     for (p = str, end = str + (len & ~7); p < end; p += 8) {
-	m = peek_u64le((u64 *) p);
+	m = peek_uint64_tle((uint64_t *) p);
 	v3 ^= m;
 	if (c == 2) {
 	    SIPROUND;
@@ -211,7 +211,7 @@ static int _siphash_chunk(int c, int d, int buffered, u64 v[5],
 	return buffered + (len & 7);
     }
 
-    b |= ((u64) totallen) << 56;
+    b |= ((uint64_t) totallen) << 56;
 
     v3 ^= b;
     if (c == 2) {
@@ -237,7 +237,7 @@ static int _siphash_chunk(int c, int d, int buffered, u64 v[5],
     return 0;
 }
 
-void hashable_siphash_init(u64 k0, u64 k1, u64 *v)
+void hashable_siphash_init(uint64_t k0, uint64_t k1, uint64_t *v)
 {
     v[0] = 0x736f6d6570736575ull ^ k0;
     v[1] = 0x646f72616e646f6dull ^ k1;
@@ -246,7 +246,7 @@ void hashable_siphash_init(u64 k0, u64 k1, u64 *v)
     v[4] = 0;
 }
 
-int hashable_siphash24_chunk(int buffered, u64 v[5], const u8 *str,
+int hashable_siphash24_chunk(int buffered, uint64_t v[5], const u8 *str,
 			     size_t len, size_t totallen)
 {
     return _siphash_chunk(2, 4, buffered, v, str, len, totallen);
@@ -255,7 +255,7 @@ int hashable_siphash24_chunk(int buffered, u64 v[5], const u8 *str,
 /*
  * Used for ByteArray#.
  */
-int hashable_siphash24_chunk_offset(int buffered, u64 v[5], const u8 *str,
+int hashable_siphash24_chunk_offset(int buffered, uint64_t v[5], const u8 *str,
 				    size_t off, size_t len, size_t totallen)
 {
     return _siphash_chunk(2, 4, buffered, v, str + off, len, totallen);
