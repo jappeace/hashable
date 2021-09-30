@@ -43,6 +43,7 @@ extra-source-files:
   CHANGES.md
   README.md
   include/HsHashable.h
+  include/siphash.h
 
 flag integer-gmp
   description:
