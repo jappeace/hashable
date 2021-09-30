@@ -1090,6 +1090,5 @@ instance Hashable1 Tree.Tree where
 -- | @since 1.3.4.0
 instance Hashable v => Hashable (Tree.Tree v) where
     hashWithSalt = hashWithSalt1
-
 foreign import ccall unsafe "hashable_siphash24" c_siphash24
     :: Word64 -> Word64 -> Ptr Word8 -> CSize -> IO Word64
