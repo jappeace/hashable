@@ -121,21 +121,6 @@ hashPtrWithSalt p len salt =
     fromIntegral `fmap` c_siphash24 k0 (fromSalt salt) (castPtr p)
                         (fromIntegral len)
 
--- | Compute a hash value for the content of this 'ByteArray#', using
--- an initial salt.
---
--- This function can for example be used to hash non-contiguous
--- segments of memory as if they were one contiguous segment, by using
--- the output of one hash as the salt for the next.
-hashByteArrayWithSalt
-    :: ByteArray#  -- ^ data to hash
-    -> Int         -- ^ offset, in bytes
-    -> Int         -- ^ length, in bytes
-    -> Salt        -- ^ salt
-    -> Salt        -- ^ hash value
-hashByteArrayWithSalt ba !off !len !h =
-    fromIntegral $
-    c_siphash24_offset k0 (fromSalt h) ba (fromIntegral off) (fromIntegral len)
 
 -- TODO don't hardcode these! The entire point is that the user can determine
 --  or hide k0 & k1 (both making up k)
@@ -187,6 +172,31 @@ foreign import ccall unsafe "hashable_siphash24" c_siphash24
 #endif
     :: Word64 -> Word64 -> Ptr Word8 -> CSize -> IO Word64
 
+newtype SipHashState x = MkSipHashState { unstate ::  Ptr Word64 }
+
+-- | allocates a siphash state for given k0.
+initializeState :: Word64 -> (forall x . SipHashState x -> IO a) -> IO a
+initializeState k0 fun =
+  allocaArray 5 $ \v -> do
+    c_siphash_init k0 (fromSalt salt) v
+    fun $ MkSipHashState v
+
+
+-- | Compute a hash value for the content of this 'ByteArray#', using
+-- an initial salt.
+--
+-- This function can for example be used to hash non-contiguous
+-- segments of memory as if they were one contiguous segment, by using
+-- the output of one hash as the salt for the next.
+hashByteArrayWithSalt
+    :: ByteArray#  -- ^ data to hash
+    -> Int         -- ^ offset, in bytes
+    -> Int         -- ^ length, in bytes
+    -> Salt        -- ^ salt
+    -> Salt        -- ^ hash value
+hashByteArrayWithSalt ba !off !len !h =
+    fromIntegral $
+    c_siphash24_offset k0 (fromSalt h) ba (fromIntegral off) (fromIntegral len)
 
 hashLazyByteStringWithSalt :: Int -> BL.ByteString -> Int
 hashLazyByteStringWithSalt salt cs0 = unsafePerformIO . allocaArray 5 $ \v -> do
@@ -200,6 +210,15 @@ hashLazyByteStringWithSalt salt cs0 = unsafePerformIO . allocaArray 5 $ \v -> do
         _ <- c_siphash24_chunk buffered v nullPtr 0 totallen
         fromIntegral `fmap` peek (v `advancePtr` 4)
   go 0 0 cs0
+
+
+#if __GLASGOW_HASKELL__ >= 802
+foreign import capi unsafe "siphash.h hashable_siphash24_chunk_offset" c_siphash24_chunk_offset
+#else
+foreign import ccall unsafe "hashable_siphash24_chunk_offset"
+        c_siphash24_chunk_offset
+#endif
+    :: CInt -> Ptr Word64 -> ByteArray# -> CSize -> CSize -> CSize -> IO CInt
 
 #if __GLASGOW_HASKELL__ >= 802
 foreign import capi unsafe "siphash.h hashable_siphash24_chunk" c_siphash24_chunk
@@ -228,10 +247,3 @@ hashLazyTextWithSalt salt cs0 = unsafePerformIO . allocaArray 5 $ \v -> do
         fromIntegral `fmap` peek (v `advancePtr` 4)
   go 0 0 cs0
 
-#if __GLASGOW_HASKELL__ >= 802
-foreign import capi unsafe "siphash.h hashable_siphash24_chunk_offset" c_siphash24_chunk_offset
-#else
-foreign import ccall unsafe "hashable_siphash24_chunk_offset"
-        c_siphash24_chunk_offset
-#endif
-    :: CInt -> Ptr Word64 -> ByteArray# -> CSize -> CSize -> CSize -> IO CInt
