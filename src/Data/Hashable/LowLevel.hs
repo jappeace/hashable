@@ -139,6 +139,8 @@ hashByteArrayWithSalt ba !off !len !h =
     fromIntegral $
     c_siphash24_offset k0 (fromSalt h) ba (fromIntegral off) (fromIntegral len)
 
+-- TODO don't hardcode these! The entire point is that the user can determine
+--  or hide k0 & k1 (both making up k)
 k0 :: Word64
 k0 = 0x56e2b8a0aee1721a
 {-# INLINE k0 #-}
@@ -208,7 +210,11 @@ foreign import ccall unsafe "hashable_siphash24_chunk" c_siphash24_chunk
 #endif
     :: CInt -> Ptr Word64 -> Ptr Word8 -> CSize -> CSize -> IO CInt
 
+#if __GLASGOW_HASKELL__ >= 802
+foreign import capi unsafe "siphash.h hashable_siphash_init" c_siphash_init
+#else
 foreign import ccall unsafe "hashable_siphash_init" c_siphash_init
+#endif
     :: Word64 -> Word64 -> Ptr Word64 -> IO ()
 
 hashLazyTextWithSalt :: Int -> TL.Text -> Int
@@ -224,6 +230,10 @@ hashLazyTextWithSalt salt cs0 = unsafePerformIO . allocaArray 5 $ \v -> do
         fromIntegral `fmap` peek (v `advancePtr` 4)
   go 0 0 cs0
 
+#if __GLASGOW_HASKELL__ >= 802
+foreign import capi unsafe "siphash.h hashable_siphash24_chunk_offset" c_siphash24_chunk_offset
+#else
 foreign import ccall unsafe "hashable_siphash24_chunk_offset"
         c_siphash24_chunk_offset
+#endif
     :: CInt -> Ptr Word64 -> ByteArray# -> CSize -> CSize -> CSize -> IO CInt
