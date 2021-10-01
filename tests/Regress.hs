@@ -48,7 +48,7 @@ regressions = [] ++
         hs @=? nub hs
 #if WORD_SIZE_IN_BITS == 64
     , testCase "64 bit Text" $ do
-          (-4389506060771033211) -- siphash
+          (-1940815995) -- siphash
           -- -3875242662334356092 -- FNV
           @=?
           hash ("hello world" :: Text)
