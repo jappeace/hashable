@@ -8,9 +8,7 @@ module Data.Hashable.LowLevel (
     hashInt64,
     hashWord64,
     hashPtrWithSalt,
-    hashByteArrayWithSalt,
-    hashLazyTextWithSalt,
-    hashLazyByteStringWithSalt
+    hashByteArrayWithSalt
 ) where
 
 #include "MachDeps.h"
