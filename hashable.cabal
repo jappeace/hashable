@@ -64,11 +64,11 @@ flag random-initial-seed
 
 
 flag sse2
-  description: Do we want to assume that a target supports SSE 2?
+  description: Use SSE2 instruction set. Available on practically any x86 CPU made since 2005.
   default: True
 
 flag sse41
-  description: Do we want to assume that a target supports SSE 4.1?
+  description: Use SSE4.1 instruction set. Available on practically any x86 CPU made since 2008.
   default: False
 
 library
