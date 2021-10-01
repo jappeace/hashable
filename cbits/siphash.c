@@ -48,16 +48,17 @@ static inline uint64_t odd_read(const u8 *p, int count, uint64_t val,
   return val;
 }
 
-static inline uint64_t _siphash(int c, int d, uint64_t k0, uint64_t k1,
-                                const u8 *str, size_t len) {
-  uint64_t v0 = 0x736f6d6570736575ull ^ k0;
-  uint64_t v1 = 0x646f72616e646f6dull ^ k1;
-  uint64_t v2 = 0x6c7967656e657261ull ^ k0;
-  uint64_t v3 = 0x7465646279746573ull ^ k1;
-  const u8 *end, *p;
-  uint64_t b;
-  int i;
+static inline uint64_t _siphash_chunk
+    ( const int c
+    , const int d
+    , uint64_t v[4] // this mutates, allowing you to keep on hashing
+    , const u8 *str
+    , const size_t len
+){
 
+  uint64_t v0 = v[0], v1 = v[1], v2 = v[2], v3 = v[3];
+  const u8 *p;
+  const u8* end;
   for (p = str, end = str + (len & ~7); p < end; p += 8) {
     uint64_t m = peek_uint64_tle((uint64_t *)p);
     v3 ^= m;
@@ -65,20 +66,20 @@ static inline uint64_t _siphash(int c, int d, uint64_t k0, uint64_t k1,
       SIPROUND;
       SIPROUND;
     } else {
-      for (i = 0; i < c; i++)
+      for (int i = 0; i < c; i++)
         SIPROUND;
     }
     v0 ^= m;
   }
 
-  b = odd_read(p, len & 7, ((uint64_t)len) << 56, 0);
+  uint64_t b = odd_read(p, len & 7, ((uint64_t)len) << 56, 0);
 
   v3 ^= b;
   if (c == 2) {
     SIPROUND;
     SIPROUND;
   } else {
-    for (i = 0; i < c; i++)
+    for (int i = 0; i < c; i++)
       SIPROUND;
   }
   v0 ^= b;
@@ -90,11 +91,22 @@ static inline uint64_t _siphash(int c, int d, uint64_t k0, uint64_t k1,
     SIPROUND;
     SIPROUND;
   } else {
-    for (i = 0; i < d; i++)
+    for (int i = 0; i < d; i++)
       SIPROUND;
   }
-  b = v0 ^ v1 ^ v2 ^ v3;
-  return b;
+  return v0 ^ v1 ^ v2 ^ v3;
+}
+
+static inline uint64_t _siphash(const int c, const int d, const uint64_t k0, const uint64_t k1,
+                                const u8 *str, size_t len) {
+  // intialize state
+  uint64_t state[4] = { 0x736f6d6570736575ull ^ k0
+         , 0x646f72616e646f6dull ^ k1
+         , 0x6c7967656e657261ull ^ k0
+         , 0x7465646279746573ull ^ k1
+         };
+  return _siphash_chunk(c, d, state, str, len);
+
 }
 
 static inline uint64_t _siphash24(uint64_t k0, uint64_t k1, const u8 *str,
@@ -162,108 +174,22 @@ uint64_t hashable_siphash24_offset(uint64_t k0, uint64_t k1, const u8 *str,
   return _siphash24(k0, k1, str + off, len);
 }
 
-static int _siphash_chunk(int c, int d, int buffered, uint64_t v[5],
-                          const u8 *str, size_t len, size_t totallen) {
-  uint64_t v0 = v[0], v1 = v[1], v2 = v[2], v3 = v[3], m, b;
-  const u8 *p, *end;
-  uint64_t carry = 0;
-  int i;
-
-  if (buffered > 0) {
-    int unbuffered = 8 - buffered;
-    int tobuffer = unbuffered > len ? len : unbuffered;
-    int shift = buffered << 3;
-
-    m = odd_read(str, tobuffer, v[4], shift);
-    str += tobuffer;
-    buffered += tobuffer;
-    len -= tobuffer;
-
-    if (buffered < 8)
-      carry = m;
-    else {
-      v3 ^= m;
-      if (c == 2) {
-        SIPROUND;
-        SIPROUND;
-      } else {
-        for (i = 0; i < c; i++)
-          SIPROUND;
-      }
-      v0 ^= m;
-      buffered = 0;
-      m = 0;
-    }
-  }
-
-  for (p = str, end = str + (len & ~7); p < end; p += 8) {
-    m = peek_uint64_tle((uint64_t *)p);
-    v3 ^= m;
-    if (c == 2) {
-      SIPROUND;
-      SIPROUND;
-    } else {
-      for (i = 0; i < c; i++)
-        SIPROUND;
-    }
-    v0 ^= m;
-  }
-
-  b = odd_read(p, len & 7, 0, 0);
-
-  if (totallen == -1) {
-    v[0] = v0;
-    v[1] = v1;
-    v[2] = v2;
-    v[3] = v3;
-    v[4] = b | carry;
-
-    return buffered + (len & 7);
-  }
-
-  b |= ((uint64_t)totallen) << 56;
-
-  v3 ^= b;
-  if (c == 2) {
-    SIPROUND;
-    SIPROUND;
-  } else {
-    for (i = 0; i < c; i++)
-      SIPROUND;
-  }
-  v0 ^= b;
-
-  v2 ^= 0xff;
-  if (d == 4) {
-    SIPROUND;
-    SIPROUND;
-    SIPROUND;
-    SIPROUND;
-  } else {
-    for (i = 0; i < d; i++)
-      SIPROUND;
-  }
-  v[4] = v0 ^ v1 ^ v2 ^ v3;
-  return 0;
-}
-
 void hashable_siphash_init(uint64_t k0, uint64_t k1, uint64_t *v) {
   v[0] = 0x736f6d6570736575ull ^ k0;
   v[1] = 0x646f72616e646f6dull ^ k1;
   v[2] = 0x6c7967656e657261ull ^ k0;
   v[3] = 0x7465646279746573ull ^ k1;
-  v[4] = 0;
 }
 
-int hashable_siphash24_chunk(int buffered, uint64_t v[5], const u8 *str,
-                             size_t len, size_t totallen) {
-  return _siphash_chunk(2, 4, buffered, v, str, len, totallen);
+int hashable_siphash24_chunk(uint64_t v[4], const u8 *str,
+                             size_t len) {
+  return _siphash_chunk(2, 4, v, str, len);
 }
 
 /*
  * Used for ByteArray#.
  */
-int hashable_siphash24_chunk_offset(int buffered, uint64_t v[5], const u8 *str,
+int hashable_siphash24_chunk_offset(uint64_t v[4], const u8 *str,
                                     size_t off, size_t len, size_t totallen) {
-  return _siphash_chunk(2, 4, buffered, v, str + off, len, totallen);
+  return _siphash_chunk(2, 4, v, str + off, len);
 }

@@ -13,12 +13,19 @@ typedef uint8_t u8;
 #define SIPHASH_FINALROUNDS 4
 
 void hashable_siphash_init(uint64_t k0, uint64_t k1, uint64_t *v);
-int hashable_siphash24_chunk(int buffered, uint64_t v[5], const u8 *str,
-                             size_t len, size_t totallen);
-int hashable_siphash24_chunk_offset(int buffered, uint64_t v[5], const u8 *str,
-                                    size_t off, size_t len, size_t totallen);
 
-uint64_t hashable_siphash24_offset(uint64_t k0, uint64_t k1,
+int hashable_siphash24_chunk_offset(uint64_t v[4],
+                                    const u8 *str, // ByteArray#
+                                    size_t off,
+                                    size_t len,
+                                    size_t totallen
+                                    );
+
+int hashable_siphash24_chunk(uint64_t v[4], const u8 *str,
+                             size_t len);
+
+uint64_t hashable_siphash24_offset(
+                                   uint64_t k0, uint64_t k1,
                                    const u8 *str, size_t off, size_t len);
 
 
