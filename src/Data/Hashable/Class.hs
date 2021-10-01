@@ -94,8 +94,6 @@ import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import qualified Data.Tree as Tree
 
-import qualified Data.Text.Internal.Lazy as TL
-
 #if __GLASGOW_HASKELL__ >= 703
 import Foreign.C (CSize(..))
 #else
@@ -670,13 +668,7 @@ instance Hashable B.ByteString where
                            hashPtrWithSalt p (fromIntegral len) (hashWithSalt salt len)
 
 instance Hashable BL.ByteString where
-    hashWithSalt salt = finalise . BL.foldlChunks step (SP salt 0)
-      where
-        finalise (SP s l) = hashWithSalt s l
-        step (SP s l) bs  = unsafeDupablePerformIO $
-                            B.unsafeUseAsCStringLen bs $ \(p, len) -> do
-                                s' <- hashPtrWithSalt p (fromIntegral len) s
-                                return (SP s' (l + len))
+    hashWithSalt = hashLazyByteStringWithSalt
 
 #if MIN_VERSION_bytestring(0,10,4)
 instance Hashable BSI.ShortByteString where
@@ -690,12 +682,7 @@ instance Hashable T.Text where
         (hashWithSalt salt len)
 
 instance Hashable TL.Text where
-    hashWithSalt salt = finalise . TL.foldlChunks step (SP salt 0)
-      where
-        finalise (SP s l) = hashWithSalt s l
-        step (SP s l) (T.Text arr off len) = SP
-            (hashByteArrayWithSalt (TA.aBA arr) (off `shiftL` 1) (len `shiftL` 1) s)
-            (l + len)
+    hashWithSalt = hashLazyTextWithSalt
 
 -- | Compute the hash of a ThreadId.
 hashThreadId :: ThreadId -> Int
@@ -781,20 +768,6 @@ hashPtr :: Ptr a      -- ^ pointer to the data to hash
         -> IO Int     -- ^ hash value
 hashPtr p len = hashPtrWithSalt p len defaultSalt
 
--- | Compute a hash value for the content of this pointer, using an
--- initial salt.
---
--- This function can for example be used to hash non-contiguous
--- segments of memory as if they were one contiguous segment, by using
--- the output of one hash as the salt for the next.
-hashPtrWithSalt :: Ptr a   -- ^ pointer to the data to hash
-                -> Int     -- ^ length, in bytes
-                -> Int     -- ^ salt
-                -> IO Int  -- ^ hash value
-hashPtrWithSalt p len salt =
-    fromIntegral `fmap` c_siphash24 k0 (fromSalt salt) (castPtr p)
-                        (fromIntegral len)
-
 -- | Compute a hash value for the content of this 'ByteArray#',
 -- beginning at the specified offset, using specified number of bytes.
 hashByteArray :: ByteArray#  -- ^ data to hash
@@ -803,37 +776,6 @@ hashByteArray :: ByteArray#  -- ^ data to hash
               -> Int         -- ^ hash value
 hashByteArray ba0 off len = hashByteArrayWithSalt ba0 off len defaultSalt
 {-# INLINE hashByteArray #-}
-
--- | Compute a hash value for the content of this 'ByteArray#', using
--- an initial salt.
---
--- This function can for example be used to hash non-contiguous
--- segments of memory as if they were one contiguous segment, by using
--- the output of one hash as the salt for the next.
-hashByteArrayWithSalt
-    :: ByteArray#  -- ^ data to hash
-    -> Int         -- ^ offset, in bytes
-    -> Int         -- ^ length, in bytes
-    -> Int         -- ^ salt
-    -> Int         -- ^ hash value
-hashByteArrayWithSalt ba !off !len !h =
-    fromIntegral $
-    c_siphash24_offset k0 (fromSalt h) ba (fromIntegral off) (fromIntegral len)
-
-k0 :: Word64
-k0 = 0x56e2b8a0aee1721a
-{-# INLINE k0 #-}
-
-fromSalt :: Int -> Word64
-#if WORD_SIZE_IN_BITS == 64
-fromSalt = fromIntegral
-#else
-fromSalt v = fromIntegral v `xor` k1
-
-k1 :: Word64
-k1 = 0x7654954208bdfef9
-{-# INLINE k1 #-}
-#endif
 
 -- | Combine two given hash values.  'combine' has zero as a left
 -- identity.
@@ -1078,8 +1020,6 @@ instance Hashable IntSet.IntSet where
 instance Hashable1 Seq.Seq where
     liftHashWithSalt h s x = F.foldl' h (hashWithSalt s (Seq.length x)) x
 
-foreign import ccall unsafe "hashable_siphash24_offset" c_siphash24_offset
-    :: Word64 -> Word64 -> ByteArray# -> CSize -> CSize -> Word64
 
 -- | @since 1.3.4.0
 instance Hashable v => Hashable (Seq.Seq v) where
@@ -1092,44 +1032,3 @@ instance Hashable1 Tree.Tree where
 -- | @since 1.3.4.0
 instance Hashable v => Hashable (Tree.Tree v) where
     hashWithSalt = hashWithSalt1
-foreign import ccall unsafe "hashable_siphash24" c_siphash24
-    :: Word64 -> Word64 -> Ptr Word8 -> CSize -> IO Word64
-<<<<<<< variant A
->>>>>>> variant B
-
-hashLazyByteStringWithSalt :: Int -> BL.ByteString -> Int
-hashLazyByteStringWithSalt salt cs0 = unsafePerformIO . allocaArray 5 $ \v -> do
-  c_siphash_init k0 (fromSalt salt) v
-  let go !buffered !totallen (BL.Chunk c cs) =
-        B.unsafeUseAsCStringLen c $ \(ptr, len) -> do
-          let len' = fromIntegral len
-          buffered' <- c_siphash24_chunk buffered v (castPtr ptr) len' (-1)
-          go buffered' (totallen + len') cs
-      go buffered totallen _ = do
-        _ <- c_siphash24_chunk buffered v nullPtr 0 totallen
-        fromIntegral `fmap` peek (v `advancePtr` 4)
-  go 0 0 cs0
-
-foreign import ccall unsafe "hashable_siphash24_chunk" c_siphash24_chunk
-    :: CInt -> Ptr Word64 -> Ptr Word8 -> CSize -> CSize -> IO CInt
-
-foreign import ccall unsafe "hashable_siphash_init" c_siphash_init
-    :: Word64 -> Word64 -> Ptr Word64 -> IO ()
-
-hashLazyTextWithSalt :: Int -> TL.Text -> Int
-hashLazyTextWithSalt salt cs0 = unsafePerformIO . allocaArray 5 $ \v -> do
-  c_siphash_init k0 (fromSalt salt) v
-  let go !buffered !totallen (TL.Chunk (T.Text arr off len) cs) = do
-        let len' = fromIntegral (len `shiftL` 1)
-        buffered' <- c_siphash24_chunk_offset buffered v (TA.aBA arr)
-                     (fromIntegral (off `shiftL` 1)) len' (-1)
-        go buffered' (totallen + len') cs
-      go buffered totallen _ = do
-        _ <- c_siphash24_chunk buffered v nullPtr 0 totallen
-        fromIntegral `fmap` peek (v `advancePtr` 4)
-  go 0 0 cs0
-
-foreign import ccall unsafe "hashable_siphash24_chunk_offset"
-        c_siphash24_chunk_offset
-    :: CInt -> Ptr Word64 -> ByteArray# -> CSize -> CSize -> CSize -> IO CInt
-======= end

@@ -49,7 +49,7 @@ regressions = [] ++
 #if WORD_SIZE_IN_BITS == 64
     , testCase "64 bit Text" $ do
         hash ("hello world" :: Text) @=?
-          2930784640930823038 -- siphash
+          (-4389506060771033211) -- siphash
           -- -3875242662334356092 -- FNV
 #endif
     , F.testGroup "concatenation"
