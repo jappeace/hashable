@@ -180,7 +180,11 @@ foreign import ccall unsafe "hashable_siphash24_offset" c_siphash24_offset
 #endif
     :: Word64 -> Word64 -> ByteArray# -> CSize -> CSize -> Word64
 
+#if __GLASGOW_HASKELL__ >= 802
+foreign import capi unsafe "siphash.h hashable_siphash24" c_siphash24
+#else
 foreign import ccall unsafe "hashable_siphash24" c_siphash24
+#endif
     :: Word64 -> Word64 -> Ptr Word8 -> CSize -> IO Word64
 
 
@@ -197,7 +201,11 @@ hashLazyByteStringWithSalt salt cs0 = unsafePerformIO . allocaArray 5 $ \v -> do
         fromIntegral `fmap` peek (v `advancePtr` 4)
   go 0 0 cs0
 
+#if __GLASGOW_HASKELL__ >= 802
+foreign import capi unsafe "siphash.h hashable_siphash24_chunk" c_siphash24_chunk
+#else
 foreign import ccall unsafe "hashable_siphash24_chunk" c_siphash24_chunk
+#endif
     :: CInt -> Ptr Word64 -> Ptr Word8 -> CSize -> CSize -> IO CInt
 
 foreign import ccall unsafe "hashable_siphash_init" c_siphash_init
