@@ -1,5 +1,5 @@
 {-# LANGUAGE CPP, BangPatterns, MagicHash, CApiFFI, UnliftedFFITypes #-}
-{-# LANGUAGE Trustworthy #-}
+{-# LANGUAGE Trustworthy, RankNTypes #-}
 -- | A module containing low-level hash primitives.
 module Data.Hashable.LowLevel (
     Salt,
@@ -175,10 +175,10 @@ foreign import ccall unsafe "hashable_siphash24" c_siphash24
 newtype SipHashState x = MkSipHashState { unstate ::  Ptr Word64 }
 
 -- | allocates a siphash state for given k0.
-initializeState :: Word64 -> (forall x . SipHashState x -> IO a) -> IO a
-initializeState k0 fun =
+initializeState :: Word64 -> Word64 -> (forall x . SipHashState x -> IO a) -> IO a
+initializeState k0 k1 fun =
   allocaArray 5 $ \v -> do
-    c_siphash_init k0 (fromSalt salt) v
+    c_siphash_init k0 k1 v
     fun $ MkSipHashState v
 
 
