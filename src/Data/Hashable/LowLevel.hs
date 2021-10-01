@@ -172,7 +172,12 @@ foreign import ccall unsafe "hashable_fnv_hash_offset" c_hashByteArray
     :: ByteArray# -> Int32 -> Int32 -> Int32 -> Word32
 #endif
 
+
+#if __GLASGOW_HASKELL__ >= 802
+foreign import capi unsafe "siphash.h hashable_siphash24_offset" c_siphash24_offset
+#else
 foreign import ccall unsafe "hashable_siphash24_offset" c_siphash24_offset
+#endif
     :: Word64 -> Word64 -> ByteArray# -> CSize -> CSize -> Word64
 
 foreign import ccall unsafe "hashable_siphash24" c_siphash24
