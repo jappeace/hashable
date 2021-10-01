@@ -35,6 +35,7 @@ tested-with:
 extra-source-files:
   benchmarks/cbits/*.h
   include/HsHashable.h
+  include/siphash.h
 
 flag integer-gmp
   description:
