@@ -33,7 +33,6 @@ tested-with:
    || ==9.0.1
 
 extra-source-files:
-  benchmarks/cbits/*.h
   include/HsHashable.h
   include/siphash.h
 
