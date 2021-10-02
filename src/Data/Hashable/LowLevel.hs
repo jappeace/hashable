@@ -8,7 +8,12 @@ module Data.Hashable.LowLevel (
     hashInt64,
     hashWord64,
     hashPtrWithSalt,
-    hashByteArrayWithSalt
+    hashByteArrayWithSalt,
+    hashByteArrayChunck,
+    k0, -- TODO remove
+    k1,
+    initializeState
+
 ) where
 
 #include "MachDeps.h"
@@ -133,11 +138,12 @@ fromSalt :: Int -> Word64
 fromSalt = fromIntegral
 #else
 fromSalt v = fromIntegral v `xor` k1
+#endif
 
+-- TODO this should be hideable, see 'k0'
 k1 :: Word64
 k1 = 0x7654954208bdfef9
 {-# INLINE k1 #-}
-#endif
 
 foreign import capi unsafe "HsHashable.h hashable_fnv_hash" c_hashCString
 #if WORD_SIZE_IN_BITS == 64
@@ -145,6 +151,7 @@ foreign import capi unsafe "HsHashable.h hashable_fnv_hash" c_hashCString
 #else
     :: CString -> Int32 -> Int32 -> IO Word32
 #endif
+
 
 #if __GLASGOW_HASKELL__ >= 802
 foreign import capi unsafe "HsHashable.h hashable_fnv_hash_offset" c_hashByteArray
@@ -175,11 +182,12 @@ foreign import ccall unsafe "hashable_siphash24" c_siphash24
 newtype SipHashState x = MkSipHashState { unstate ::  Ptr Word64 }
 
 -- | allocates a siphash state for given k0.
-initializeState :: Word64 -> Word64 -> (forall x . SipHashState x -> IO a) -> IO a
+initializeState :: Word64 -> Word64 -> (forall x . SipHashState x -> IO ()) -> IO Int
 initializeState k0 k1 fun =
-  allocaArray 5 $ \v -> do
+  allocaArray 4 $ \v -> do --
     c_siphash_init k0 k1 v
     fun $ MkSipHashState v
+    fromIntegral <$> c_siphash24_finalize v
 
 -- | Compute a hash value for the content of this 'ByteArray#', using
 -- an initial salt.
@@ -197,24 +205,17 @@ hashByteArrayWithSalt ba !off !len !h =
     fromIntegral $
     c_siphash24_offset k0 (fromSalt h) ba (fromIntegral off) (fromIntegral len)
 
-
 -- | Sip hash is streamable after initilization. Use 'initializeState'
 --   to obtain 'SipHashState x'
 hashByteArrayChunck
-    :: forall x
-    . SipHashState x
-    -> ByteArray#  -- ^ data to hash
+    :: forall x .
+      ByteArray#  -- ^ data to hash
     -> Int         -- ^ offset, in bytes
     -> Int         -- ^ length, in bytes
-    -> Salt        -- ^ salt
-    -> IO Salt        -- ^ hash value
-hashByteArrayChunck (MkSipHashState v) ba off len h = do
-  pure 4
-
--- | At any point the result can be read.
-readResult :: SipHashState x -> IO Int
-readResult (MkSipHashState v) =
-        fromIntegral `fmap` peek (v `advancePtr` 4)
+    -> SipHashState x -- ^ this mutates
+    -> IO () -- ^ hash value
+hashByteArrayChunck ba off len (MkSipHashState v) =
+  c_siphash24_compression_offset v ba (fromIntegral off) (fromIntegral len)
 
 -- hashLazyByteStringWithSalt :: Int -> BL.ByteString -> Int
 -- hashLazyByteStringWithSalt salt cs0 = unsafePerformIO . allocaArray 5 $ \v -> do
@@ -222,29 +223,36 @@ readResult (MkSipHashState v) =
 --   let go !buffered !totallen (BL.Chunk c cs) =
 --         B.unsafeUseAsCStringLen c $ \(ptr, len) -> do
 --           let len' = fromIntegral len
---           buffered' <- c_siphash24_chunk buffered v (castPtr ptr) len' (-1)
+--           buffered' <- c_siphash24_compression buffered v (castPtr ptr) len' (-1)
 --           go buffered' (totallen + len') cs
 --       go buffered totallen _ = do
---         _ <- c_siphash24_chunk buffered v nullPtr 0 totallen
+--         _ <- c_siphash24_compression buffered v nullPtr 0 totallen
 --         fromIntegral `fmap` peek (v `advancePtr` 4)
 --   go 0 0 cs0
 
 
 
 #if __GLASGOW_HASKELL__ >= 802
-foreign import capi unsafe "siphash.h hashable_siphash24_chunk" c_siphash24_chunk
+foreign import capi unsafe "siphash.h hashable_siphash24_compression" c_siphash24_compression
 #else
-foreign import ccall unsafe "hashable_siphash24_chunk" c_siphash24_chunk
+foreign import ccall unsafe "hashable_siphash24_compression" c_siphash24_compression
 #endif
-    :: Ptr Word64 -> Ptr Word8 -> CSize -> IO CInt
+    :: Ptr Word64 -> Ptr Word8 -> CSize -> IO ()
 
 #if __GLASGOW_HASKELL__ >= 802
-foreign import capi unsafe "siphash.h hashable_siphash24_chunk_offset" c_siphash24_chunk_offset
+foreign import capi unsafe "siphash.h hashable_siphash24_finalize" c_siphash24_finalize
 #else
-foreign import ccall unsafe "hashable_siphash24_chunk_offset"
-        c_siphash24_chunk_offset
+foreign import ccall unsafe "hashable_siphash24_finalize" c_siphash24_finalize
 #endif
-    :: Ptr Word64 -> ByteArray# -> CSize -> CSize -> IO CInt
+    :: Ptr Word64 -> IO Word64
+
+#if __GLASGOW_HASKELL__ >= 802
+foreign import capi unsafe "siphash.h hashable_siphash24_compression_offset" c_siphash24_compression_offset
+#else
+foreign import ccall unsafe "hashable_siphash24_compression_offset"
+        c_siphash24_compression_offset
+#endif
+    :: Ptr Word64 -> ByteArray# -> CSize -> CSize -> IO ()
 
 #if __GLASGOW_HASKELL__ >= 802
 foreign import capi unsafe "siphash.h hashable_siphash_init" c_siphash_init
@@ -258,10 +266,10 @@ foreign import ccall unsafe "hashable_siphash_init" c_siphash_init
 --   c_siphash_init k0 (fromSalt salt) v
 --   let go !buffered !totallen (TL.Chunk (T.Text arr off len) cs) = do
 --         let len' = fromIntegral (len `shiftL` 1)
---         buffered' <- c_siphash24_chunk_offset buffered v (TA.aBA arr)
+--         buffered' <- c_siphash24_compression_offset buffered v (TA.aBA arr)
 --                      (fromIntegral (off `shiftL` 1)) len' (-1)
 --         go buffered' (totallen + len') cs
 --       go buffered totallen _ = do
---         _ <- c_siphash24_chunk buffered v nullPtr 0 totallen
+--         _ <- c_siphash24_compression buffered v nullPtr 0 totallen
 --         fromIntegral `fmap` peek (v `advancePtr` 4)
 --   go 0 0 cs0

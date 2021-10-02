@@ -93,6 +93,7 @@ import qualified Data.Map as Map
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import qualified Data.Tree as Tree
+import System.IO.Unsafe(unsafePerformIO)
 
 -- As we use qualified F.Foldable, we don't get warnings with newer base
 import qualified Data.Foldable as F
@@ -682,12 +683,14 @@ instance Hashable T.Text where
         (hashWithSalt salt len)
 
 instance Hashable TL.Text where
-    hashWithSalt salt = finalise . TL.foldlChunks step (SP salt 0)
+    hashWithSalt salt txt =
+      unsafePerformIO $
+      initializeState k0 k1 $ \state ->
+        TL.foldlChunks (step state) (pure ()) txt
       where
-        finalise (SP s l) = hashWithSalt s l
-        step (SP s l) (T.Text arr off len) = SP
-            (hashByteArrayWithSalt (TA.aBA arr) (off `shiftL` 1) (len `shiftL` 1) s)
-            (l + len)
+        step state prev (T.Text arr off len) = do
+            _ <- prev
+            hashByteArrayChunck (TA.aBA arr) (off `shiftL` 1) (len `shiftL` 1) state
 
 -- | Compute the hash of a ThreadId.
 hashThreadId :: ThreadId -> Int

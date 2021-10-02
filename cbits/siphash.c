@@ -48,9 +48,8 @@ static inline uint64_t odd_read(const u8 *p, int count, uint64_t val,
   return val;
 }
 
-static inline uint64_t _siphash_chunk
+static inline void _siphash_compression
     ( const int c
-    , const int d
     , uint64_t v[4] // this mutates, allowing you to keep on hashing
     , const u8 *str
     , const size_t len
@@ -83,7 +82,13 @@ static inline uint64_t _siphash_chunk
       SIPROUND;
   }
   v0 ^= b;
+}
 
+static inline uint64_t _siphash_finalize
+    ( const int d
+    , uint64_t v[4] // this mutates, allowing you to keep on hashing
+      ){
+  uint64_t v0 = v[0], v1 = v[1], v2 = v[2], v3 = v[3];
   v2 ^= 0xff;
   if (d == 4) {
     SIPROUND;
@@ -105,7 +110,8 @@ static inline uint64_t _siphash(const int c, const int d, const uint64_t k0, con
          , 0x6c7967656e657261ull ^ k0
          , 0x7465646279746573ull ^ k1
          };
-  return _siphash_chunk(c, d, state, str, len);
+  _siphash_compression(c, state, str, len);
+  return _siphash_finalize(d, state);
 
 }
 
@@ -181,15 +187,19 @@ void hashable_siphash_init(uint64_t k0, uint64_t k1, uint64_t *v) {
   v[3] = 0x7465646279746573ull ^ k1;
 }
 
-int hashable_siphash24_chunk(uint64_t v[4], const u8 *str,
+void hashable_siphash24_compression(uint64_t v[4], const u8 *str,
                              size_t len) {
-  return _siphash_chunk(2, 4, v, str, len);
+  return _siphash_compression(2, v, str, len);
 }
 
 /*
  * Used for ByteArray#.
  */
-int hashable_siphash24_chunk_offset(uint64_t v[4], const u8 *str,
+void hashable_siphash24_compression_offset(uint64_t v[4], const u8 *str,
                                     size_t off, size_t len) {
-  return _siphash_chunk(2, 4, v, str + off, len);
+  return _siphash_compression(2, v, str + off, len);
+}
+
+uint64_t hashable_siphash24_finalize(uint64_t *v) {
+  return _siphash_finalize(4, v);
 }

@@ -14,13 +14,15 @@ typedef uint8_t u8;
 
 void hashable_siphash_init(uint64_t k0, uint64_t k1, uint64_t *v);
 
-int hashable_siphash24_chunk_offset(uint64_t v[4],
+uint64_t hashable_siphash24_finalize(uint64_t *v);
+
+void hashable_siphash24_compression_offset(uint64_t v[4],
                                     const u8 *str, // ByteArray#
                                     size_t off,
                                     size_t len
                                     );
 
-int hashable_siphash24_chunk(uint64_t v[4], const u8 *str,
+void hashable_siphash24_compression(uint64_t v[4], const u8 *str,
                              size_t len);
 
 uint64_t hashable_siphash24_offset(
