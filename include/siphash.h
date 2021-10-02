@@ -17,8 +17,7 @@ void hashable_siphash_init(uint64_t k0, uint64_t k1, uint64_t *v);
 int hashable_siphash24_chunk_offset(uint64_t v[4],
                                     const u8 *str, // ByteArray#
                                     size_t off,
-                                    size_t len,
-                                    size_t totallen
+                                    size_t len
                                     );
 
 int hashable_siphash24_chunk(uint64_t v[4], const u8 *str,

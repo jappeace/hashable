@@ -181,7 +181,6 @@ initializeState k0 k1 fun =
     c_siphash_init k0 k1 v
     fun $ MkSipHashState v
 
-
 -- | Compute a hash value for the content of this 'ByteArray#', using
 -- an initial salt.
 --
@@ -198,19 +197,46 @@ hashByteArrayWithSalt ba !off !len !h =
     fromIntegral $
     c_siphash24_offset k0 (fromSalt h) ba (fromIntegral off) (fromIntegral len)
 
-hashLazyByteStringWithSalt :: Int -> BL.ByteString -> Int
-hashLazyByteStringWithSalt salt cs0 = unsafePerformIO . allocaArray 5 $ \v -> do
-  c_siphash_init k0 (fromSalt salt) v
-  let go !buffered !totallen (BL.Chunk c cs) =
-        B.unsafeUseAsCStringLen c $ \(ptr, len) -> do
-          let len' = fromIntegral len
-          buffered' <- c_siphash24_chunk buffered v (castPtr ptr) len' (-1)
-          go buffered' (totallen + len') cs
-      go buffered totallen _ = do
-        _ <- c_siphash24_chunk buffered v nullPtr 0 totallen
-        fromIntegral `fmap` peek (v `advancePtr` 4)
-  go 0 0 cs0
 
+-- | Sip hash is streamable after initilization. Use 'initializeState'
+--   to obtain 'SipHashState x'
+hashByteArrayChunck
+    :: forall x
+    . SipHashState x
+    -> ByteArray#  -- ^ data to hash
+    -> Int         -- ^ offset, in bytes
+    -> Int         -- ^ length, in bytes
+    -> Salt        -- ^ salt
+    -> IO Salt        -- ^ hash value
+hashByteArrayChunck (MkSipHashState v) ba off len h = do
+  pure 4
+
+-- | At any point the result can be read.
+readResult :: SipHashState x -> IO Int
+readResult (MkSipHashState v) =
+        fromIntegral `fmap` peek (v `advancePtr` 4)
+
+-- hashLazyByteStringWithSalt :: Int -> BL.ByteString -> Int
+-- hashLazyByteStringWithSalt salt cs0 = unsafePerformIO . allocaArray 5 $ \v -> do
+--   c_siphash_init k0 (fromSalt salt) v
+--   let go !buffered !totallen (BL.Chunk c cs) =
+--         B.unsafeUseAsCStringLen c $ \(ptr, len) -> do
+--           let len' = fromIntegral len
+--           buffered' <- c_siphash24_chunk buffered v (castPtr ptr) len' (-1)
+--           go buffered' (totallen + len') cs
+--       go buffered totallen _ = do
+--         _ <- c_siphash24_chunk buffered v nullPtr 0 totallen
+--         fromIntegral `fmap` peek (v `advancePtr` 4)
+--   go 0 0 cs0
+
+
+
+#if __GLASGOW_HASKELL__ >= 802
+foreign import capi unsafe "siphash.h hashable_siphash24_chunk" c_siphash24_chunk
+#else
+foreign import ccall unsafe "hashable_siphash24_chunk" c_siphash24_chunk
+#endif
+    :: Ptr Word64 -> Ptr Word8 -> CSize -> IO CInt
 
 #if __GLASGOW_HASKELL__ >= 802
 foreign import capi unsafe "siphash.h hashable_siphash24_chunk_offset" c_siphash24_chunk_offset
@@ -218,14 +244,7 @@ foreign import capi unsafe "siphash.h hashable_siphash24_chunk_offset" c_siphash
 foreign import ccall unsafe "hashable_siphash24_chunk_offset"
         c_siphash24_chunk_offset
 #endif
-    :: CInt -> Ptr Word64 -> ByteArray# -> CSize -> CSize -> CSize -> IO CInt
-
-#if __GLASGOW_HASKELL__ >= 802
-foreign import capi unsafe "siphash.h hashable_siphash24_chunk" c_siphash24_chunk
-#else
-foreign import ccall unsafe "hashable_siphash24_chunk" c_siphash24_chunk
-#endif
-    :: CInt -> Ptr Word64 -> Ptr Word8 -> CSize -> CSize -> IO CInt
+    :: Ptr Word64 -> ByteArray# -> CSize -> CSize -> IO CInt
 
 #if __GLASGOW_HASKELL__ >= 802
 foreign import capi unsafe "siphash.h hashable_siphash_init" c_siphash_init
@@ -234,16 +253,15 @@ foreign import ccall unsafe "hashable_siphash_init" c_siphash_init
 #endif
     :: Word64 -> Word64 -> Ptr Word64 -> IO ()
 
-hashLazyTextWithSalt :: Int -> TL.Text -> Int
-hashLazyTextWithSalt salt cs0 = unsafePerformIO . allocaArray 5 $ \v -> do
-  c_siphash_init k0 (fromSalt salt) v
-  let go !buffered !totallen (TL.Chunk (T.Text arr off len) cs) = do
-        let len' = fromIntegral (len `shiftL` 1)
-        buffered' <- c_siphash24_chunk_offset buffered v (TA.aBA arr)
-                     (fromIntegral (off `shiftL` 1)) len' (-1)
-        go buffered' (totallen + len') cs
-      go buffered totallen _ = do
-        _ <- c_siphash24_chunk buffered v nullPtr 0 totallen
-        fromIntegral `fmap` peek (v `advancePtr` 4)
-  go 0 0 cs0
-
+-- hashLazyTextWithSalt :: Int -> TL.Text -> Int
+-- hashLazyTextWithSalt salt cs0 = unsafePerformIO . allocaArray 5 $ \v -> do
+--   c_siphash_init k0 (fromSalt salt) v
+--   let go !buffered !totallen (TL.Chunk (T.Text arr off len) cs) = do
+--         let len' = fromIntegral (len `shiftL` 1)
+--         buffered' <- c_siphash24_chunk_offset buffered v (TA.aBA arr)
+--                      (fromIntegral (off `shiftL` 1)) len' (-1)
+--         go buffered' (totallen + len') cs
+--       go buffered totallen _ = do
+--         _ <- c_siphash24_chunk buffered v nullPtr 0 totallen
+--         fromIntegral `fmap` peek (v `advancePtr` 4)
+--   go 0 0 cs0

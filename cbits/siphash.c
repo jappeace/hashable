@@ -190,6 +190,6 @@ int hashable_siphash24_chunk(uint64_t v[4], const u8 *str,
  * Used for ByteArray#.
  */
 int hashable_siphash24_chunk_offset(uint64_t v[4], const u8 *str,
-                                    size_t off, size_t len, size_t totallen) {
+                                    size_t off, size_t len) {
   return _siphash_chunk(2, 4, v, str + off, len);
 }
