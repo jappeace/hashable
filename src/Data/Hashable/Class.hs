@@ -663,10 +663,13 @@ instance Hashable B.ByteString where
                            hashPtrWithSalt p (fromIntegral len) (hashWithSalt salt len)
 
 instance Hashable BL.ByteString where
-    hashWithSalt salt = finalise . BL.foldlChunks step (SP salt 0)
+    hashWithSalt salt bstxt =
+      unsafePerformIO $
+      initializeState k0 k1 $ \state ->
+        BL.foldlChunks (step state) (pure ()) bstxt
       where
-        finalise (SP s l) = hashWithSalt s l
-        step (SP s l) bs  = unsafeDupablePerformIO $
+        step state prev bs =  do
+                            _ <- prev
                             B.unsafeUseAsCStringLen bs $ \(p, len) -> do
                                 s' <- hashPtrWithSalt p (fromIntegral len) s
                                 return (SP s' (l + len))
