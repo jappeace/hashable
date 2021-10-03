@@ -127,9 +127,7 @@ hashPtrWithSalt :: Ptr a   -- ^ pointer to the data to hash
                 -> Salt    -- ^ salt
                 -> IO Salt -- ^ hash value
 hashPtrWithSalt p len salt =
-    fromIntegral `fmap` c_siphash24 k0 (fromSalt salt) (castPtr p)
-                        (fromIntegral len)
-
+    withState k0 k1 (\state -> salt <$ hashPtrChunck p len state)
 
 -- TODO don't hardcode these! The entire point is that the user can determine
 --  or hide k0 & k1 (both making up k)
@@ -149,40 +147,6 @@ k1 :: Word64
 k1 = 0x7654954208bdfef9
 {-# INLINE k1 #-}
 
-foreign import capi unsafe "HsHashable.h hashable_fnv_hash" c_hashCString
-#if WORD_SIZE_IN_BITS == 64
-    :: CString -> Int64 -> Int64 -> IO Word64
-#else
-    :: CString -> Int32 -> Int32 -> IO Word32
-#endif
-
-
-#if __GLASGOW_HASKELL__ >= 802
-foreign import capi unsafe "HsHashable.h hashable_fnv_hash_offset" c_hashByteArray
-#else
-foreign import ccall unsafe "hashable_fnv_hash_offset" c_hashByteArray
-#endif
-#if WORD_SIZE_IN_BITS == 64
-    :: ByteArray# -> Int64 -> Int64 -> Int64 -> Word64
-#else
-    :: ByteArray# -> Int32 -> Int32 -> Int32 -> Word32
-#endif
-
-
-#if __GLASGOW_HASKELL__ >= 802
-foreign import capi unsafe "siphash.h hashable_siphash24_offset" c_siphash24_offset
-#else
-foreign import ccall unsafe "hashable_siphash24_offset" c_siphash24_offset
-#endif
-    :: Word64 -> Word64 -> ByteArray# -> CSize -> CSize -> Word64
-
-#if __GLASGOW_HASKELL__ >= 802
-foreign import capi unsafe "siphash.h hashable_siphash24" c_siphash24
-#else
-foreign import ccall unsafe "hashable_siphash24" c_siphash24
-#endif
-    :: Word64 -> Word64 -> Ptr Word8 -> CSize -> IO Word64
-
 newtype SipHashState = MkSipHashState { unstate ::  Ptr Word64 }
 
 -- | allocates a siphash state for given k0.
@@ -197,7 +161,7 @@ withState k0 k1 fun =
   allocaArray 4 $ \v -> do
     c_siphash_init k0 k1 v
     salt <- fun $ MkSipHashState v
-    hashInt salt -- you could choose to hash k0 and/or k1 instead
+    hashInt salt -- just jam the salt in somewhere (k0, or k1 could've worked as well)
       . fromIntegral <$> c_siphash_finalize finalizeRounds v
 
 -- | Compute a hash value for the content of this 'ByteArray#', using
@@ -212,9 +176,8 @@ hashByteArrayWithSalt
     -> Int         -- ^ length, in bytes
     -> Salt        -- ^ salt
     -> Salt        -- ^ hash value
-hashByteArrayWithSalt ba !off !len !h =
-    fromIntegral $
-    c_siphash24_offset k0 (fromSalt h) ba (fromIntegral off) (fromIntegral len)
+hashByteArrayWithSalt ba !off !len !salt =
+    unsafePerformIO $ withState k0 k1 (\state -> salt <$ hashByteArrayChunck ba off len state)
 
 -- | Sip hash is streamable after initilization. Use 'withState'
 --   to obtain 'SipHashState x'
@@ -239,14 +202,7 @@ hashPtrChunck
     -> SipHashState -- ^ this mutates (out var)
     -> IO ()
 hashPtrChunck ba len (MkSipHashState v) =
-  c_siphash24_compression v (castPtr ba) (fromIntegral len)
-
-#if __GLASGOW_HASKELL__ >= 802
-foreign import capi unsafe "siphash.h hashable_siphash24_compression" c_siphash24_compression
-#else
-foreign import ccall unsafe "hashable_siphash24_compression" c_siphash24_compression
-#endif
-    :: Ptr Word64 -> Ptr Word8 -> CSize -> IO ()
+  c_siphash_compression_words compressionRounds v (castPtr ba) 0 (fromIntegral len)
 
 #if __GLASGOW_HASKELL__ >= 802
 foreign import capi unsafe "siphash.h hashable_siphash_finalize" c_siphash_finalize
@@ -256,12 +212,24 @@ foreign import ccall unsafe "hashable_siphash_finalize" c_siphash_finalize
     :: CInt -> Ptr Word64 -> IO Word64
 
 #if __GLASGOW_HASKELL__ >= 802
-foreign import capi unsafe "siphash.h hashable_siphash_compression_offset" c_siphash_compression_offset
+foreign import capi unsafe "siphash.h hashable_siphash_compression" c_siphash_compression_offset
 #else
-foreign import ccall unsafe "hashable_siphash_compression_offset"
+foreign import ccall unsafe "hashable_siphash_compression"
         c_siphash_compression_offset
 #endif
     :: CInt -> Ptr Word64 -> ByteArray# -> CSize -> CSize -> IO ()
+
+-- I don't think it's easy to convince the compiler  ByteArray# ~ Ptr Word8
+-- (I'm probably wrong on this even, but this is what the previous version basically did,
+-- and I (naivily probably) believe them)
+-- so we just add another binding to the same function
+#if __GLASGOW_HASKELL__ >= 802
+foreign import capi unsafe "siphash.h hashable_siphash_compression" c_siphash_compression_words
+#else
+foreign import ccall unsafe "hashable_siphash_compression"
+        c_siphash_compression_words
+#endif
+    :: CInt -> Ptr Word64 -> Ptr Word8 -> CSize -> CSize -> IO ()
 
 #if __GLASGOW_HASKELL__ >= 802
 foreign import capi unsafe "siphash.h hashable_siphash_init" c_siphash_init

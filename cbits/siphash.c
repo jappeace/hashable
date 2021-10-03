@@ -160,42 +160,18 @@ static inline void ensure_sse_init() {
 #endif
 }
 
-uint64_t hashable_siphash(int c, int d, uint64_t k0, uint64_t k1, const u8 *str,
-                          size_t len) {
-  return _siphash(c, d, k0, k1, str, len);
-}
-
-uint64_t hashable_siphash24(uint64_t k0, uint64_t k1, const u8 *str,
-                            size_t len) {
-  ensure_sse_init();
-  return _siphash24(k0, k1, str, len);
-}
-
-/* Used for ByteArray#s. We can't treat them like pointers in
-   native Haskell, but we can in unsafe FFI calls.
- */
-uint64_t hashable_siphash24_offset(uint64_t k0, uint64_t k1, const u8 *str,
-                                   size_t off, size_t len) {
-  ensure_sse_init();
-  return _siphash24(k0, k1, str + off, len);
-}
-
 void hashable_siphash_init(uint64_t k0, uint64_t k1, uint64_t *v) {
+  ensure_sse_init();
   v[0] = 0x736f6d6570736575ull ^ k0;
   v[1] = 0x646f72616e646f6dull ^ k1;
   v[2] = 0x6c7967656e657261ull ^ k0;
   v[3] = 0x7465646279746573ull ^ k1;
 }
 
-void hashable_siphash24_compression(uint64_t v[4], const u8 *str,
-                             size_t len) {
-  return _siphash_compression(2, v, str, len);
-}
-
 /*
  * Used for ByteArray#.
  */
-void hashable_siphash_compression_offset(const int c, uint64_t v[4], const u8 *str,
+void hashable_siphash_compression(const int c, uint64_t v[4], const u8 *str,
                                     size_t off, size_t len) {
   return _siphash_compression(c, v, str + off, len);
 }

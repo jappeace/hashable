@@ -84,7 +84,7 @@ import Foreign.Storable (alignment, peek, sizeOf)
 import GHC.Base (ByteArray#)
 import GHC.Conc (ThreadId(..))
 import GHC.Prim (ThreadId#)
-import System.IO.Unsafe (unsafeDupablePerformIO)
+import System.IO.Unsafe (unsafeDupablePerformIO, unsafePerformIO)
 import System.Mem.StableName
 import Data.Unique (Unique, hashUnique)
 import qualified Data.IntMap as IntMap
@@ -663,7 +663,7 @@ instance Hashable B.ByteString where
 
 instance Hashable BL.ByteString where
     hashWithSalt salt bstxt =
-      unsafeDupablePerformIO $
+      unsafePerformIO $
       withState k0 k1 $ \state ->
         hashInt salt <$> BL.foldlChunks (step state) (pure 0) bstxt
       where
