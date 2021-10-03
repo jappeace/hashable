@@ -105,6 +105,8 @@ static inline uint64_t _siphash_finalize
 #if defined(__i386)
 #undef _siphash24
 
+static uint64_t (*_siphash24)(uint64_t k0, uint64_t k1, const u8 *, size_t);
+
 static void maybe_use_sse() __attribute__((constructor));
 
 static void maybe_use_sse() {
