@@ -184,15 +184,15 @@ newtype SipHashState = MkSipHashState { unstate ::  Ptr Word64 }
 -- | allocates a siphash state for given k0.
 --   this allows usage of 'hashByteArrayChunck'
 --   after those calls are made, the hash will be returned
-withState :: Salt -- ^ note that salt is different from k0 and k1 (because it's not secret and can represent hash state)
-          -> Word64 -- ^ k0 (k for key, should be secret)
+withState :: Word64 -- ^ k0 (k for key, should be secret)
           -> Word64 -- ^ k1 (second part of the key)
-          -> (SipHashState -> IO ()) -- ^ the function to mutate the sipState
+          -> (SipHashState -> IO Salt
+            ) -- ^ the function to mutate the sipState, should return a salt, return 0 if you don't want this to do anything
           -> IO Int -- ^ the hash value
-withState salt k0 k1 fun =
+withState k0 k1 fun =
   allocaArray 4 $ \v -> do
     c_siphash_init k0 k1 v
-    fun $ MkSipHashState v
+    salt <- fun $ MkSipHashState v
     hashInt salt -- you could choose to hash k0 and/or k1 instead
       . fromIntegral <$> c_siphash24_finalize v
 

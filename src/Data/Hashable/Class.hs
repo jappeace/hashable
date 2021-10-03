@@ -664,13 +664,13 @@ instance Hashable B.ByteString where
 instance Hashable BL.ByteString where
     hashWithSalt salt bstxt =
       unsafeDupablePerformIO $
-      withState salt k0 k1 $ \state ->
-        BL.foldlChunks (step state) (pure ()) bstxt
+      withState k0 k1 $ \state ->
+        hashInt salt <$> BL.foldlChunks (step state) (pure 0) bstxt
       where
         step state prev bs =  do
-                            _ <- prev
-                            B.unsafeUseAsCStringLen bs $ \(p, len) -> do
-                                hashPtrChunck p (fromIntegral len) state
+                            prevLen <- prev
+                            B.unsafeUseAsCStringLen bs $ \(p, len) ->
+                                (prevLen + len) <$ hashPtrChunck p (fromIntegral len) state
 
 #if MIN_VERSION_bytestring(0,10,4)
 instance Hashable BSI.ShortByteString where
@@ -686,12 +686,12 @@ instance Hashable T.Text where
 instance Hashable TL.Text where
     hashWithSalt salt txt =
       unsafeDupablePerformIO $
-      withState salt k0 k1 $ \state ->
-        TL.foldlChunks (step state) (pure ()) txt
+      withState k0 k1 $ \state ->
+        hashInt salt <$> TL.foldlChunks (step state) (pure 0) txt
       where
         step state prev (T.Text arr off len) = do
-            _ <- prev
-            hashByteArrayChunck (TA.aBA arr) (off `shiftL` 1) (len `shiftL` 1) state
+            prevLen <- prev
+            (prevLen + len) <$ hashByteArrayChunck (TA.aBA arr) (off `shiftL` 1) (len `shiftL` 1) state
 
 -- | Compute the hash of a ThreadId.
 hashThreadId :: ThreadId -> Int
