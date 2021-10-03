@@ -54,6 +54,10 @@ import Foreign.C (CSize(..))
 #else
 import Foreign.C (CSize)
 #endif
+#if __GLASGOW_HASKELL__ <= 784
+import Control.Applicative((<$>))
+#endif
+
 
 -------------------------------------------------------------------------------
 -- Initial seed
