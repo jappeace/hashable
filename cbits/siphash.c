@@ -102,28 +102,8 @@ static inline uint64_t _siphash_finalize
   return v0 ^ v1 ^ v2 ^ v3;
 }
 
-static inline uint64_t _siphash(const int c, const int d, const uint64_t k0, const uint64_t k1,
-                                const u8 *str, size_t len) {
-  // intialize state
-  uint64_t state[4] = { 0x736f6d6570736575ull ^ k0
-         , 0x646f72616e646f6dull ^ k1
-         , 0x6c7967656e657261ull ^ k0
-         , 0x7465646279746573ull ^ k1
-         };
-  _siphash_compression(c, state, str, len);
-  return _siphash_finalize(d, state);
-
-}
-
-static inline uint64_t _siphash24(uint64_t k0, uint64_t k1, const u8 *str,
-                                  size_t len) {
-  return _siphash(2, 4, k0, k1, str, len);
-}
-
 #if defined(__i386)
 #undef _siphash24
-
-static uint64_t (*_siphash24)(uint64_t k0, uint64_t k1, const u8 *, size_t);
 
 static void maybe_use_sse() __attribute__((constructor));
 
