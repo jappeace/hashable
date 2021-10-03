@@ -12,8 +12,8 @@ module Data.Hashable.LowLevel (
     hashByteArrayChunck,
     k0, -- TODO remove
     k1,
-    withState
-
+    withState,
+    hashPtrChunck
 ) where
 
 #include "MachDeps.h"
@@ -184,16 +184,17 @@ newtype SipHashState = MkSipHashState { unstate ::  Ptr Word64 }
 -- | allocates a siphash state for given k0.
 --   this allows usage of 'hashByteArrayChunck'
 --   after those calls are made, the hash will be returned
-withState ::
-  Word64 -> -- ^ k0 (k for key, should be secret)
-  Word64 -> -- ^ k1 (second part of the key)
-  (SipHashState -> IO ()) -> -- ^ the function to mutate the sipState
-  IO Int -- ^ the hash value
-withState k0 k1 fun =
-  allocaArray 4 $ \v -> do --
+withState :: Salt -- ^ note that salt is different from k0 and k1 (because it's not secret and can represent hash state)
+          -> Word64 -- ^ k0 (k for key, should be secret)
+          -> Word64 -- ^ k1 (second part of the key)
+          -> (SipHashState -> IO ()) -- ^ the function to mutate the sipState
+          -> IO Int -- ^ the hash value
+withState salt k0 k1 fun =
+  allocaArray 4 $ \v -> do
     c_siphash_init k0 k1 v
     fun $ MkSipHashState v
-    fromIntegral <$> c_siphash24_finalize v
+    hashInt salt -- you could choose to hash k0 and/or k1 instead
+      . fromIntegral <$> c_siphash24_finalize v
 
 -- | Compute a hash value for the content of this 'ByteArray#', using
 -- an initial salt.
@@ -227,7 +228,7 @@ hashPtrChunck
     -> Int         -- ^ length, in bytes
     -> SipHashState -- ^ this mutates (out var)
     -> IO ()
-hashPtrChunck ba off len (MkSipHashState v) =
+hashPtrChunck ba len (MkSipHashState v) =
   c_siphash24_compression v (castPtr ba) (fromIntegral len)
 
 #if __GLASGOW_HASKELL__ >= 802

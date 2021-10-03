@@ -93,7 +93,6 @@ import qualified Data.Map as Map
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import qualified Data.Tree as Tree
-import System.IO.Unsafe(unsafePerformIO)
 
 -- As we use qualified F.Foldable, we don't get warnings with newer base
 import qualified Data.Foldable as F
@@ -664,15 +663,14 @@ instance Hashable B.ByteString where
 
 instance Hashable BL.ByteString where
     hashWithSalt salt bstxt =
-      unsafePerformIO $
-      initializeState k0 k1 $ \state ->
+      unsafeDupablePerformIO $
+      withState salt k0 k1 $ \state ->
         BL.foldlChunks (step state) (pure ()) bstxt
       where
         step state prev bs =  do
                             _ <- prev
                             B.unsafeUseAsCStringLen bs $ \(p, len) -> do
-                                s' <- hashPtrWithSalt p (fromIntegral len) s
-                                return (SP s' (l + len))
+                                hashPtrChunck p (fromIntegral len) state
 
 #if MIN_VERSION_bytestring(0,10,4)
 instance Hashable BSI.ShortByteString where
@@ -687,8 +685,8 @@ instance Hashable T.Text where
 
 instance Hashable TL.Text where
     hashWithSalt salt txt =
-      unsafePerformIO $
-      initializeState k0 k1 $ \state ->
+      unsafeDupablePerformIO $
+      withState salt k0 k1 $ \state ->
         TL.foldlChunks (step state) (pure ()) txt
       where
         step state prev (T.Text arr off len) = do
