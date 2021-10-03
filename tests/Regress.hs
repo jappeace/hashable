@@ -52,6 +52,48 @@ regressions = [] ++
           @=?
           hash ("hello world" :: Text)
 #endif
+    , F.testGroup "different chars aren't equal"
+      [ testCase "String" $ do
+            let lhs, rhs :: String
+                lhs = "a"
+                rhs = "x"
+
+            when (hash lhs == hash rhs) $ do
+                assertFailure "Should have different hashes"
+
+        , testCase "Text" $ do
+            let lhs, rhs :: Text
+                lhs = "a"
+                rhs = "x"
+
+            when (hash lhs == hash rhs) $ do
+                assertFailure "Should have different hashes"
+
+        , testCase "Lazy Text" $ do
+            let lhs, rhs :: TL.Text
+                lhs = "a"
+                rhs = "x"
+
+            when (hash lhs == hash rhs) $ do
+                assertFailure "Should have different hashes"
+
+        , testCase "ByteString" $ do
+            let lhs, rhs :: ByteString
+                lhs = "a"
+                rhs = "x"
+
+            when (hash lhs == hash rhs) $ do
+                assertFailure "Should have different hashes"
+
+        , testCase "Lazy ByteString" $ do
+            let lhs, rhs :: BSL.ByteString
+                lhs = "a"
+                rhs = "x"
+
+            when (hash lhs == hash rhs) $ do
+                assertFailure "Should have different hashes"
+
+      ]
     , F.testGroup "compression does something statefull"
       [ testCase "String" $ do
             let lhs, rhs :: String
