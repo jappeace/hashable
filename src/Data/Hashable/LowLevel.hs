@@ -155,7 +155,7 @@ newtype SipHashState = MkSipHashState { unstate ::  Ptr Word64 }
 withState :: Word64 -- ^ k0 (k for key, should be secret)
           -> Word64 -- ^ k1 (second part of the key)
           -> (SipHashState -> IO Salt
-            ) -- ^ the function to mutate the sipState, should return a salt, return 0 if you don't want this to do anything
+            ) -- ^ the function to mutate the sipState, should return a salt, a salt of 0 means no salting (the xor doesn't do anything with that value).
           -> IO Int -- ^ the hash value
 withState k0 k1 fun =
   allocaArray 4 $ \v -> do
