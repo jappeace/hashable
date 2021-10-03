@@ -13,7 +13,7 @@ module Data.Hashable.LowLevel (
     k0, -- TODO remove
     k1,
     withState,
-    hashPtrChunck
+    hashPtrChunk
 ) where
 
 #include "MachDeps.h"
@@ -127,7 +127,7 @@ hashPtrWithSalt :: Ptr a   -- ^ pointer to the data to hash
                 -> Salt    -- ^ salt
                 -> IO Salt -- ^ hash value
 hashPtrWithSalt p len salt =
-    withState k0 k1 (\state -> salt <$ hashPtrChunck p len state)
+    withState k0 k1 (\state -> salt <$ hashPtrChunk p len state)
 
 -- TODO don't hardcode these! The entire point is that the user can determine
 --  or hide k0 & k1 (both making up k)
@@ -196,12 +196,12 @@ compressionRounds = 2
 finalizeRounds :: CInt
 finalizeRounds = 4
 
-hashPtrChunck
+hashPtrChunk
     :: Ptr a  -- ^ data to hash
     -> Int         -- ^ length, in bytes
     -> SipHashState -- ^ this mutates (out var)
     -> IO ()
-hashPtrChunck ba len (MkSipHashState v) =
+hashPtrChunk ba len (MkSipHashState v) =
   c_siphash_compression_words compressionRounds v (castPtr ba) 0 (fromIntegral len)
 
 #if __GLASGOW_HASKELL__ >= 802

@@ -670,7 +670,7 @@ instance Hashable BL.ByteString where
         step state prev bs =  do
                             prevLen <- prev
                             B.unsafeUseAsCStringLen bs $ \(p, len) ->
-                                (prevLen + len) <$ hashPtrChunck p (fromIntegral len) state
+                                (prevLen + len) <$ hashPtrChunk p (fromIntegral len) state
 
 #if MIN_VERSION_bytestring(0,10,4)
 instance Hashable BSI.ShortByteString where
