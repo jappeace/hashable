@@ -195,11 +195,11 @@ void hashable_siphash24_compression(uint64_t v[4], const u8 *str,
 /*
  * Used for ByteArray#.
  */
-void hashable_siphash24_compression_offset(uint64_t v[4], const u8 *str,
+void hashable_siphash_compression_offset(const int c, uint64_t v[4], const u8 *str,
                                     size_t off, size_t len) {
-  return _siphash_compression(2, v, str + off, len);
+  return _siphash_compression(c, v, str + off, len);
 }
 
-uint64_t hashable_siphash24_finalize(uint64_t *v) {
-  return _siphash_finalize(4, v);
+uint64_t hashable_siphash_finalize(const int d, uint64_t *v) {
+  return _siphash_finalize(d, v);
 }

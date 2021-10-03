@@ -194,7 +194,7 @@ withState k0 k1 fun =
     c_siphash_init k0 k1 v
     salt <- fun $ MkSipHashState v
     hashInt salt -- you could choose to hash k0 and/or k1 instead
-      . fromIntegral <$> c_siphash24_finalize v
+      . fromIntegral <$> c_siphash_finalize finalizeRounds v
 
 -- | Compute a hash value for the content of this 'ByteArray#', using
 -- an initial salt.
@@ -221,7 +221,13 @@ hashByteArrayChunck
     -> SipHashState -- ^ this mutates (out var)
     -> IO ()
 hashByteArrayChunck ba off len (MkSipHashState v) =
-  c_siphash24_compression_offset v ba (fromIntegral off) (fromIntegral len)
+  c_siphash_compression_offset compressionRounds v ba (fromIntegral off) (fromIntegral len)
+
+compressionRounds :: CInt
+compressionRounds = 2
+
+finalizeRounds :: CInt
+finalizeRounds = 4
 
 hashPtrChunck
     :: Ptr a  -- ^ data to hash
@@ -239,19 +245,19 @@ foreign import ccall unsafe "hashable_siphash24_compression" c_siphash24_compres
     :: Ptr Word64 -> Ptr Word8 -> CSize -> IO ()
 
 #if __GLASGOW_HASKELL__ >= 802
-foreign import capi unsafe "siphash.h hashable_siphash24_finalize" c_siphash24_finalize
+foreign import capi unsafe "siphash.h hashable_siphash_finalize" c_siphash_finalize
 #else
-foreign import ccall unsafe "hashable_siphash24_finalize" c_siphash24_finalize
+foreign import ccall unsafe "hashable_siphash_finalize" c_siphash_finalize
 #endif
-    :: Ptr Word64 -> IO Word64
+    :: CInt -> Ptr Word64 -> IO Word64
 
 #if __GLASGOW_HASKELL__ >= 802
-foreign import capi unsafe "siphash.h hashable_siphash24_compression_offset" c_siphash24_compression_offset
+foreign import capi unsafe "siphash.h hashable_siphash_compression_offset" c_siphash_compression_offset
 #else
-foreign import ccall unsafe "hashable_siphash24_compression_offset"
-        c_siphash24_compression_offset
+foreign import ccall unsafe "hashable_siphash_compression_offset"
+        c_siphash_compression_offset
 #endif
-    :: Ptr Word64 -> ByteArray# -> CSize -> CSize -> IO ()
+    :: CInt -> Ptr Word64 -> ByteArray# -> CSize -> CSize -> IO ()
 
 #if __GLASGOW_HASKELL__ >= 802
 foreign import capi unsafe "siphash.h hashable_siphash_init" c_siphash_init

@@ -14,9 +14,11 @@ typedef uint8_t u8;
 
 void hashable_siphash_init(uint64_t k0, uint64_t k1, uint64_t *v);
 
-uint64_t hashable_siphash24_finalize(uint64_t *v);
+uint64_t hashable_siphash_finalize(const int d, uint64_t *v);
 
-void hashable_siphash24_compression_offset(uint64_t v[4],
+void hashable_siphash_compression_offset(
+                                         const int c,
+                                         uint64_t v[4],
                                     const u8 *str, // ByteArray#
                                     size_t off,
                                     size_t len
