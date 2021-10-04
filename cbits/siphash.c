@@ -1,5 +1,6 @@
 /* Almost a verbatim copy of the reference implementation. */
-
+#define __STDC_FORMAT_MACROS
+#include <inttypes.h>
 #include "siphash.h"
 #include <stddef.h>
 
@@ -7,20 +8,20 @@
 
 #define SIPROUND                                                               \
   do {                                                                         \
-    v[0] += v[1];                                                               \
-    v[1] = ROTL(v[1], 13);                                                      \
-    v[1] ^= v[0];                                                               \
-    v[0] = ROTL(v[0], 32);                                                      \
-    v[2] += v[3];                                                               \
-    v[3] = ROTL(v[3], 16);                                                      \
-    v[3] ^= v[2];                                                               \
-    v[0] += v[3];                                                               \
-    v[3] = ROTL(v[3], 21);                                                      \
-    v[3] ^= v[0];                                                               \
-    v[2] += v[1];                                                               \
-    v[1] = ROTL(v[1], 17);                                                      \
-    v[1] ^= v[2];                                                               \
-    v[2] = ROTL(v[2], 32);                                                      \
+    v[0] += v[1];                                                              \
+    v[1] = ROTL(v[1], 13);                                                     \
+    v[1] ^= v[0];                                                              \
+    v[0] = ROTL(v[0], 32);                                                     \
+    v[2] += v[3];                                                              \
+    v[3] = ROTL(v[3], 16);                                                     \
+    v[3] ^= v[2];                                                              \
+    v[0] += v[3];                                                              \
+    v[3] = ROTL(v[3], 21);                                                     \
+    v[3] ^= v[0];                                                              \
+    v[2] += v[1];                                                              \
+    v[1] = ROTL(v[1], 17);                                                     \
+    v[1] ^= v[2];                                                              \
+    v[2] = ROTL(v[2], 32);                                                     \
   } while (0)
 
 #if defined(__i386)
@@ -48,39 +49,54 @@ static inline uint64_t odd_read(const u8 *p, int count, uint64_t val,
   return val;
 }
 
-static inline void _siphash_compression
-    ( const int c
-    , uint64_t v[4] // this mutates, allowing you to keep on hashing
-    , const u8 *str
-    , const size_t len
-){
+static inline void _siphash_print_input(const u8 *buf, const size_t len) {
+  int i;
+  for (i = 0; i < len; i++) {
+    if (i > 0)
+      printf(":");
+    printf("%02X", buf[i]);
+  }
+}
+static inline void _siphash_print_message(const uint64_t m) {
+    printf("%"PRIu64, m);
+}
+
+static inline void _siphash_compression(
+    const int c, uint64_t v[4] // this mutates, allowing you to keep on hashing
+    ,
+    const u8 *str, const size_t len) {
   const u8 *p;
-  const u8* end;
+  const u8 *end;
+  printf("%li ", (len & ~7));
+  _siphash_print_input(str, len);
+  printf(" ");
 
   // compress message
   for (p = str, end = str + (len & ~7); p < end; p += 8) {
     uint64_t m = peek_uint64_tle((uint64_t *)p);
+    _siphash_print_message(m);
     v[3] ^= m;
-    for (int i = 0; i < c; i++){
-        SIPROUND;
+    for (int i = 0; i < c; i++) {
+      SIPROUND;
     }
     v[0] ^= m;
   }
 
   // compress remainder
   uint64_t b = odd_read(p, len & 7, ((uint64_t)len) << 56, 0);
+  _siphash_print_message(b);
+  printf("\n");
 
   v[3] ^= b;
-  for (int i = 0; i < c; i++){
-      SIPROUND;
+  for (int i = 0; i < c; i++) {
+    SIPROUND;
   }
   v[0] ^= b;
 }
 
-static inline uint64_t _siphash_finalize
-    ( const int d
-    , uint64_t v[4] // this mutates, allowing you to keep on hashing
-      ){
+static inline uint64_t _siphash_finalize(
+    const int d, uint64_t v[4] // this mutates, allowing you to keep on hashing
+) {
   v[2] ^= 0xff;
   if (d == 4) {
     SIPROUND;
@@ -146,7 +162,7 @@ void hashable_siphash_init(uint64_t k0, uint64_t k1, uint64_t *v) {
  * Used for ByteArray#.
  */
 void hashable_siphash_compression(const int c, uint64_t v[4], const u8 *str,
-                                    size_t off, size_t len) {
+                                  size_t off, size_t len) {
   _siphash_compression(c, v, str + off, len);
 }
 

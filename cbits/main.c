@@ -17,5 +17,5 @@ int main () {
   hashable_siphash_compression(1,v,"B",0,1);
   uint64_t res1 = hashable_siphash_finalize(4, v);
 
-  printf("%d == %d D", res2, res1);
+  printf("%u == %u D", res2, res1);
 };
