@@ -56,27 +56,22 @@ static inline void _siphash_compression
 ){
   const u8 *p;
   const u8* end;
+
+  // compress message
   for (p = str, end = str + (len & ~7); p < end; p += 8) {
     uint64_t m = peek_uint64_tle((uint64_t *)p);
     v[3] ^= m;
-    if (c == 2) {
-      SIPROUND;
-      SIPROUND;
-    } else {
-      for (int i = 0; i < c; i++)
+    for (int i = 0; i < c; i++){
         SIPROUND;
     }
     v[0] ^= m;
   }
 
+  // compress remainder
   uint64_t b = odd_read(p, len & 7, ((uint64_t)len) << 56, 0);
 
   v[3] ^= b;
-  if (c == 2) {
-    SIPROUND;
-    SIPROUND;
-  } else {
-    for (int i = 0; i < c; i++)
+  for (int i = 0; i < c; i++){
       SIPROUND;
   }
   v[0] ^= b;
