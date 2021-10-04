@@ -12,6 +12,7 @@ import Data.Hashable (Hashable, hash, hashByteArray, hashPtr,
 import Data.Hashable.Generic (genericHashWithSalt)
 import Data.Hashable.Lifted (hashWithSalt1)
 import qualified Data.ByteString as B
+import qualified Data.ByteString.Builder as BB
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
@@ -79,6 +80,7 @@ instance Arbitrary ChunkSize where
     arbitrary = (ChunkSize . (`mod` maxChunkSize)) `fmap`
                 (arbitrary `suchThat` ((/=0) . (`mod` maxChunkSize)))
         where maxChunkSize = 16
+
 
 -- | Ensure that the rechunk function causes a rechunked string to
 -- still match its original form.
@@ -253,6 +255,13 @@ properties =
     , testGroup "lifted law"
       [ testProperty "Hashed" pLiftedHashed
       ]
+    , testGroup "prefixed statefull"
+    [ testProperty "string" prefixedString
+    , testProperty "text/strict" prefixedText
+    , testProperty "text/lazy" prefixedTextL
+    , testProperty "bytestring/strict" prefixedBS
+    , testProperty "bytestring/lazy" prefixedBSL
+    ]
     ]
 
 ------------------------------------------------------------------------
@@ -264,3 +273,60 @@ fromStrict = BL.fromStrict
 #else
 fromStrict b = BL.fromChunks [b]
 #endif
+
+data SizedPair a = MkSizedPair { sized1 :: a, sized2 :: a }
+  deriving Show
+
+instance (Eq a, Arbitrary a) => Arbitrary (SizedPair a) where
+  arbitrary = do
+    size' <- chooseInt (1, 15)
+    suchThat (MkSizedPair <$> resize size' arbitrary <*> resize size' arbitrary) $
+        \(MkSizedPair a b) -> a /= b
+
+
+prefixed ::
+  (Show a, Hashable a, Monoid a)
+  => (Char -> a)
+  -> SizedPair a
+  -> Char
+  -> Property
+prefixed lift (MkSizedPair a b) c =
+  counterexample (
+    "failed " <> show lhs <> " & " <> show rhs <>
+    " hash " <> show one <> " /= " <> show two
+    ) (one /= two)
+  where
+    lhs = a <> lift c
+    rhs = b <> lift c
+    one = hash lhs
+    two = hash rhs
+
+prefixedString ::
+  SizedPair String
+  -> Char
+  -> Property
+prefixedString = prefixed pure
+
+prefixedText ::
+  SizedPair T.Text
+  -> Char
+  -> Property
+prefixedText = prefixed T.singleton
+
+prefixedTextL ::
+  SizedPair TL.Text
+  -> Char
+  -> Property
+prefixedTextL = prefixed TL.singleton
+
+prefixedBS ::
+  SizedPair B.ByteString
+  -> Char
+  -> Property
+prefixedBS = prefixed (BL.toStrict . BB.toLazyByteString . BB.charUtf8)
+
+prefixedBSL ::
+  SizedPair BL.ByteString
+  -> Char
+  -> Property
+prefixedBSL = prefixed (BB.toLazyByteString . BB.charUtf8)

@@ -94,48 +94,6 @@ regressions = [] ++
                 assertFailure "Should have different hashes"
 
       ]
-    , F.testGroup "compression does something statefull"
-      [ testCase "String" $ do
-            let lhs, rhs :: String
-                lhs = "ab"
-                rhs = "xb"
-
-            when (hash lhs == hash rhs) $ do
-                assertFailure "Should have different hashes"
-
-        , testCase "Text" $ do
-            let lhs, rhs :: Text
-                lhs = "ab"
-                rhs = "xb"
-
-            when (hash lhs == hash rhs) $ do
-                assertFailure "Should have different hashes"
-
-        , testCase "Lazy Text" $ do
-            let lhs, rhs :: TL.Text
-                lhs = "ab"
-                rhs = "xb"
-
-            when (hash lhs == hash rhs) $ do
-                assertFailure "Should have different hashes"
-
-        , testCase "ByteString" $ do
-            let lhs, rhs :: ByteString
-                lhs = "ab"
-                rhs = "xb"
-
-            when (hash lhs == hash rhs) $ do
-                assertFailure "Should have different hashes"
-
-        , testCase "Lazy ByteString" $ do
-            let lhs, rhs :: BSL.ByteString
-                lhs = "ab"
-                rhs = "xb"
-
-            when (hash lhs == hash rhs) $ do
-                assertFailure "Should have different hashes"
-
-      ]
     , F.testGroup "concatenation"
         [ testCase "String" $ do
             let lhs, rhs :: (String, String)
