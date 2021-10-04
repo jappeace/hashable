@@ -685,7 +685,7 @@ instance Hashable T.Text where
 
 instance Hashable TL.Text where
     hashWithSalt salt txt =
-      unsafeDupablePerformIO $
+      unsafePerformIO $
       withState k0 k1 $ \state ->
         hashInt salt <$> TL.foldlChunks (step state) (pure 0) txt
       where
