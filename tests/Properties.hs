@@ -255,12 +255,21 @@ properties =
     , testGroup "lifted law"
       [ testProperty "Hashed" pLiftedHashed
       ]
-    , testGroup "prefixed statefull"
+    , testGroup "statefull"
+    [ testGroup "postfix"
+    [ testProperty "string" postfixedString
+    , testProperty "text/strict" postfixedText
+    , testProperty "text/lazy" postfixedTextL
+    , testProperty "bytestring/strict" postfixedBS
+    , testProperty "bytestring/lazy" postfixedBSL
+    ]
+    , testGroup "prefix"
     [ testProperty "string" prefixedString
     , testProperty "text/strict" prefixedText
     , testProperty "text/lazy" prefixedTextL
     , testProperty "bytestring/strict" prefixedBS
     , testProperty "bytestring/lazy" prefixedBSL
+    ]
     ]
     ]
 
@@ -284,22 +293,39 @@ instance (Eq a, Arbitrary a) => Arbitrary (SizedPair a) where
         \(MkSizedPair a b) -> a /= b
 
 
+fixed ::
+  (Show a, Hashable a)
+  => (a -> a -> a) -- first arg input string, second arg char
+  -> (Char -> a)
+  -> SizedPair a
+  -> Char
+  -> Property
+fixed semigroup lift (MkSizedPair a b) c =
+  counterexample (
+    "failed " <> show lhs <> " & " <> show rhs <>
+    " hash " <> show one <> " /= " <> show two
+    ) (one /= two)
+  where
+    lhs = semigroup a $ lift c
+    rhs = semigroup b $ lift c
+    one = hash lhs
+    two = hash rhs
+
+postfixed ::
+  (Show a, Hashable a, Monoid a)
+  => (Char -> a)
+  -> SizedPair a
+  -> Char
+  -> Property
+postfixed = fixed (<>)
+
 prefixed ::
   (Show a, Hashable a, Monoid a)
   => (Char -> a)
   -> SizedPair a
   -> Char
   -> Property
-prefixed lift (MkSizedPair a b) c =
-  counterexample (
-    "failed " <> show lhs <> " & " <> show rhs <>
-    " hash " <> show one <> " /= " <> show two
-    ) (one /= two)
-  where
-    lhs = a <> lift c
-    rhs = b <> lift c
-    one = hash lhs
-    two = hash rhs
+prefixed = fixed (flip (<>))
 
 prefixedString ::
   SizedPair String
@@ -330,3 +356,33 @@ prefixedBSL ::
   -> Char
   -> Property
 prefixedBSL = prefixed (BB.toLazyByteString . BB.charUtf8)
+
+postfixedString ::
+  SizedPair String
+  -> Char
+  -> Property
+postfixedString = postfixed pure
+
+postfixedText ::
+  SizedPair T.Text
+  -> Char
+  -> Property
+postfixedText = postfixed T.singleton
+
+postfixedTextL ::
+  SizedPair TL.Text
+  -> Char
+  -> Property
+postfixedTextL = postfixed TL.singleton
+
+postfixedBS ::
+  SizedPair B.ByteString
+  -> Char
+  -> Property
+postfixedBS = postfixed (BL.toStrict . BB.toLazyByteString . BB.charUtf8)
+
+postfixedBSL ::
+  SizedPair BL.ByteString
+  -> Char
+  -> Property
+postfixedBSL = postfixed (BB.toLazyByteString . BB.charUtf8)
